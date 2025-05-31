@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Love Rain 360</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            text-align: center;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">Xoay điện thoại hoặc chạm và kéo để xem mưa tình yêu!</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Cảnh 3D
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Ánh sáng
+        const light = new THREE.AmbientLight(0xffffff);
+        scene.add(light);
+
+        // Vị trí camera
+        camera.position.z = 10;
+
+        // Danh sách thông điệp tình yêu
+        const messages = ['Anh Yeu Em', 'Mai Ben Nhau', 'Em La Tat Ca', 'I Love You'];
+        let texts = [];
+        const maxTexts = 20; // Số lượng văn bản tối đa trên màn hình
+        let font = null;
+
+        // Tải font
+        const loader = new THREE.FontLoader();
+        loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (loadedFont) {
+            font = loadedFont;
+            // Tạo văn bản ban đầu
+            for (let i = 0; i < maxTexts; i++) {
+                createText();
+            }
+        });
+
+        // Hàm tạo văn bản 3D
+        function createText() {
+            if (!font) return;
+            const message = messages[Math.floor(Math.random() * messages.length)];
+            const textGeometry = new THREE.TextGeometry(message, {
+                font: font,
+                size: 0.5,
+                height: 0.1,
+            });
+            const textMaterial = new THREE.MeshBasicMaterial({ color: 0xff69b4 }); // Màu hồng phấn
+            const textMesh = new THREE.Mesh(textGeometry, textMaterial);
+            // Vị trí ngẫu nhiên phía trên
+            textMesh.position.set(
+                (Math.random() - 0.5) * 20, // x: ngẫu nhiên từ -10 đến 10
+                10 + Math.random() * 5,    // y: bắt đầu từ trên cao
+                (Math.random() - 0.5) * 10  // z: ngẫu nhiên để tạo độ sâu
+            );
+            textMesh.userData = { velocity: -0.05 - Math.random() * 0.05 }; // Tốc độ rơi
+            scene.add(textMesh);
+            texts.push(textMesh);
+        }
+
+        // Cập nhật vị trí văn bản (hiệu ứng mưa)
+        function updateTexts() {
+            texts = texts.filter(text => {
+                text.position.y += text.userData.velocity; // Rơi xuống
+                if (text.position.y < -10) {
+                    // Xóa văn bản khi ra khỏi màn hình
+                    scene.remove(text);
+                    return false;
+                }
+                return true;
+            });
+            // Tạo văn bản mới để duy trì số lượng
+            while (texts.length < maxTexts && font) {
+                createText();
+            }
+        }
+
+        // Điều khiển chạm (touch) cho điện thoại
+        let isTouching = false;
+        let previousTouchPosition = { x: 0, y: 0 };
+        document.addEventListener('touchstart', (e) => {
+            isTouching = true;
+            previousTouchPosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        });
+        document.addEventListener('touchend', () => {
+            isTouching = false;
+        });
+        document.addEventListener('touchmove', (e) => {
+            if (isTouching) {
+                const deltaMove = {
+                    x: e.touches[0].clientX - previousTouchPosition.x,
+                    y: e.touches[0].clientY - previousTouchPosition.y
+                };
+                scene.rotation.y += deltaMove.x * 0.005;
+                scene.rotation.x += deltaMove.y * 0.005;
+                previousTouchPosition = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            }
+        });
+
+        // Xoay bằng cảm biến điện thoại
+        window.addEventListener('deviceorientation', (event) => {
+            const beta = event.beta * Math.PI / 180; // Xoay quanh trục X
+            const gamma = event.gamma * Math.PI / 180; // Xoay quanh trục Y
+            scene.rotation.x = beta * 0.5; // Giảm độ nhạy
+            scene.rotation.y = gamma * 0.5;
+        });
+
+        // Vòng lặp animation
+        function animate() {
+            requestAnimationFrame(animate);
+            updateTexts(); // Cập nhật hiệu ứng mưa
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Xử lý thay đổi kích thước cửa sổ
+        window.addEventListener('resize', () => {
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        });
+
+        // Yêu cầu quyền sử dụng cảm biến trên iOS
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+                .then(response => {
+                    if (response === 'granted') {
+                        window.addEventListener('deviceorientation', (event) => {
+                            const beta = event.beta * Math.PI / 180;
+                            const gamma = event.gamma * Math.PI / 180;
+                            scene.rotation.x = beta * 0.5;
+                            scene.rotation.y = gamma * 0.5;
+                        });
+                    }
+                })
+                .catch(console.error);
+        }
+    </script>
+</body>
+</html>
